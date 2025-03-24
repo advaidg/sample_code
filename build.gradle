@@ -1,0 +1,92 @@
+plugins {
+    id 'war'
+    id 'java'
+}
+
+sourceCompatibility = '17'
+targetCompatibility = '17'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Spring Framework (Jakarta EE compatible version)
+    implementation 'org.springframework:spring-context:6.1.3'
+    implementation 'org.springframework:spring-web:6.1.3'
+    implementation 'org.springframework:spring-webmvc:6.1.3'
+    
+    // Ensure all required Spring dependencies are included
+    implementation 'org.springframework:spring-beans:6.1.3'
+    implementation 'org.springframework:spring-core:6.1.3'
+    implementation 'org.springframework:spring-aop:6.1.3'
+    implementation 'org.springframework:spring-expression:6.1.3'
+    
+    // Jakarta EE API (provided by Liberty)
+    providedCompile 'jakarta.platform:jakarta.jakartaee-api:10.0.0'
+    
+    // Logging (important for Spring)
+    implementation 'org.slf4j:slf4j-api:2.0.9'
+    implementation 'ch.qos.logback:logback-classic:1.4.11'
+    
+    // Test dependencies
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.0'
+}
+
+// CRITICAL: This ensures dependencies are included in the WAR file
+configurations {
+    // Make sure runtime classpath includes implementation dependencies
+    runtimeClasspath {
+        extendsFrom implementation
+    }
+}
+
+war {
+    // This explicitly includes all runtime dependencies in WEB-INF/lib
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    
+    // Exclude any provided dependencies (e.g., Jakarta EE API)
+    classpath = configurations.runtimeClasspath - configurations.providedCompile
+    
+    // Ensure web.xml and other WEB-INF resources are included
+    webInf {
+        from('src/main/webapp/WEB-INF') {
+            include '**/*'
+            into 'WEB-INF'
+        }
+    }
+    
+    // Avoid duplicate entries and META-INF conflicts
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    
+    // Ensure the WAR is reproducible
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
+
+// Verify WAR contents - this will show you exactly what's in your WAR
+task listWarContents(dependsOn: war) {
+    doLast {
+        println "Contents of WAR: ${war.archiveFileName.get()}"
+        zipTree(war.archiveFile).visit { details ->
+            println details.path
+        }
+    }
+}
+
+// Just verify the libs specifically
+task listWarLibs(dependsOn: war) {
+    doLast {
+        println "Libraries in WEB-INF/lib:"
+        zipTree(war.archiveFile).matching { include 'WEB-INF/lib/**' }.each { file ->
+            println file.name
+        }
+    }
+}
+
+test {
+    useJUnitPlatform()
+}
